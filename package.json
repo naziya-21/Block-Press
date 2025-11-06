@@ -1,0 +1,29 @@
+{
+  "name": "block-press",
+  "version": "1.0.0",
+  "description": "Decentralized Tamper-Proof Journalism Network",
+  "main": "index.js",
+  "scripts": {
+    "dev": "npx http-server -p 8080",
+    "compile": "npx hardhat compile",
+    "deploy": "npx hardhat run scripts/deploy.js",
+    "test": "npx hardhat test"
+  },
+  "keywords": [
+    "blockchain",
+    "ethereum",
+    "solidity",
+    "web3"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "web3": "^4.3.0"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "hardhat": "^2.19.0"
+  }
+}
+
+

@@ -10,11 +10,12 @@
 
   <!-- Navbar -->
   <div class="navbar">
-    <div class="title"><a href="dashboard.html" style="color: white; text-decoration: none;">Block Press</a></div>
+    <div class="title"><a href="main.html" style="color: white; text-decoration: none;">Block Press</a></div>
     <div class="buttons">
       <button><a href="friend.html" style="color: white; text-decoration: none;">Friends</a></button>
       <button><a href="chat.html" style="color: white; text-decoration: none;">Chat</a></button>
     </div>
+    <div id="wallet-info" style="color: white; margin-left: 20px; font-size: 12px;"></div>
   </div>
 
   <!-- Main container -->
@@ -23,30 +24,227 @@
 
     <div class="chat-box">
       <!-- Address input -->
-      <input type="text" placeholder="0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266">
+      <input type="text" id="recipient-address" placeholder="Enter recipient address (0x...)" style="padding: 10px; margin: 10px 0; width: 100%; border-radius: 5px; border: 1px solid #ccc;">
+      <button class="btn" onclick="lookupUsername()" style="margin: 10px 0;">Lookup Username</button>
+      <div id="recipient-info" style="margin: 10px 0; padding: 10px; background: #f0f0f0; border-radius: 5px; display: none;">
+        <strong>Chatting with:</strong> <span id="recipient-username"></span>
+      </div>
 
       <!-- Messages window -->
-      <div class="messages">
-        <div class="message">
-          <span class="sender">0x71bE:</span> Hi!
-          <div class="timestamp">4/17/2025, 10:52:17 PM</div>
-        </div>
-        <div class="message">
-          <span class="sender">0x71bE:</span> I just read your article about the incident
-          <div class="timestamp">4/17/2025, 10:52:22 PM</div>
-        </div>
+      <div class="messages" id="messages-container" style="min-height: 300px; max-height: 500px; overflow-y: auto; padding: 10px; background: #fafafa; border-radius: 5px; margin: 15px 0;">
+        <p style="text-align: center; color: #666;">Select a friend to start chatting</p>
       </div>
 
       <!-- Message input -->
-      <input type="text" placeholder="Type your message">
+      <input type="text" id="message-input" placeholder="Type your message" style="padding: 10px; margin: 10px 0; width: 100%; border-radius: 5px; border: 1px solid #ccc;">
 
       <!-- Send button -->
-      <button class="btn">Send</button>
+      <button class="btn" onclick="handleSendMessage()">Send to Blockchain</button>
 
       <!-- Load messages button -->
-      <button class="btn load-btn">Load Messages</button>
+      <button class="btn load-btn" onclick="loadMessages()" style="margin-top: 10px;">Load Messages</button>
+      
+      <div id="message-status" style="margin-top: 10px; padding: 5px; display: none;"></div>
     </div>
   </div>
+
+  <!-- Web3 Library -->
+  <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+  <!-- Web3 Configuration -->
+  <script src="js/web3-config.js"></script>
+  
+  <script>
+    let isConnected = false;
+    let currentRecipient = null;
+    let recipientUsername = null;
+
+    // Initialize on page load
+    window.addEventListener('load', async () => {
+      await initBlockchain();
+      
+      // Check for recipient in URL parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      const recipient = urlParams.get('recipient');
+      if (recipient) {
+        document.getElementById('recipient-address').value = recipient;
+        currentRecipient = recipient;
+        await lookupUsername();
+        await loadMessages();
+      }
+    });
+
+    async function initBlockchain() {
+      try {
+        isConnected = await window.web3Config.initWeb3();
+        
+        if (isConnected) {
+          const account = window.web3Config.getUserAccount();
+          document.getElementById('wallet-info').textContent = `Connected: ${account.substring(0, 6)}...${account.substring(38)}`;
+          
+          // Check if user is registered
+          const registered = await window.web3Config.checkUserExists(account);
+          if (!registered) {
+            alert('Please create an account first at the main page');
+            window.location.href = 'main.html';
+          }
+        }
+      } catch (error) {
+        console.error('Init error:', error);
+      }
+    }
+
+    async function lookupUsername() {
+      const address = document.getElementById('recipient-address').value.trim();
+      
+      if (!address || !address.startsWith('0x')) {
+        alert('Please enter a valid Ethereum address');
+        return;
+      }
+
+      try {
+        const exists = await window.web3Config.checkUserExists(address);
+        if (!exists) {
+          alert('This address is not registered');
+          return;
+        }
+
+        const username = await window.web3Config.getUsername(address);
+        const infoDiv = document.getElementById('recipient-info');
+        infoDiv.style.display = 'block';
+        document.getElementById('recipient-username').textContent = `@${username} (${address.substring(0, 6)}...${address.substring(38)})`;
+        currentRecipient = address;
+        recipientUsername = username;
+        
+        // Auto-load messages
+        await loadMessages();
+      } catch (error) {
+        alert('Error: ' + error.message);
+        console.error('Lookup error:', error);
+      }
+    }
+
+    async function handleSendMessage() {
+      const message = document.getElementById('message-input').value.trim();
+      
+      if (!message) {
+        alert('Please enter a message');
+        return;
+      }
+
+      if (!currentRecipient) {
+        const address = document.getElementById('recipient-address').value.trim();
+        if (!address || !address.startsWith('0x')) {
+          alert('Please enter and lookup a recipient address first');
+          return;
+        }
+        currentRecipient = address;
+      }
+
+      if (!isConnected) {
+        alert('Please connect to MetaMask first');
+        await initBlockchain();
+        return;
+      }
+
+      try {
+        const statusDiv = document.getElementById('message-status');
+        statusDiv.style.display = 'block';
+        statusDiv.textContent = 'Sending message to blockchain...';
+        statusDiv.style.color = '#ff9800';
+
+        await window.web3Config.sendMessage(currentRecipient, message);
+        
+        statusDiv.textContent = '✓ Message sent to blockchain!';
+        statusDiv.style.color = '#4caf50';
+        
+        document.getElementById('message-input').value = '';
+        
+        // Reload messages
+        await loadMessages();
+      } catch (error) {
+        const statusDiv = document.getElementById('message-status');
+        statusDiv.style.display = 'block';
+        statusDiv.textContent = '✗ Error: ' + error.message;
+        statusDiv.style.color = '#f44336';
+        console.error('Send message error:', error);
+      }
+    }
+
+    async function loadMessages() {
+      try {
+        if (!isConnected || !currentRecipient) {
+          document.getElementById('messages-container').innerHTML = '<p style="text-align: center; color: #666;">Select a friend to start chatting</p>';
+          return;
+        }
+        
+        const messages = await window.web3Config.readMessage(currentRecipient);
+        const container = document.getElementById('messages-container');
+        const currentAccount = window.web3Config.getUserAccount();
+        
+        container.innerHTML = '';
+        
+        if (messages.length === 0) {
+          container.innerHTML = '<p style="text-align: center; color: #666;">No messages yet. Start the conversation!</p>';
+          return;
+        }
+        
+        // Load messages in order
+        messages.forEach((msg) => {
+          const timestamp = new Date(parseInt(msg.timestamp) * 1000);
+          const isFromMe = msg.sender.toLowerCase() === currentAccount.toLowerCase();
+          
+          const messageDiv = document.createElement('div');
+          messageDiv.className = 'message';
+          messageDiv.style.cssText = `
+            padding: 10px 15px;
+            margin: 8px 0;
+            border-radius: 10px;
+            max-width: 70%;
+            ${isFromMe ? 
+              'background-color: #4caf50; color: white; margin-left: auto; text-align: right;' : 
+              'background-color: #e0e0e0; color: #333; margin-right: auto;'
+            }
+          `;
+          
+          messageDiv.innerHTML = `
+            <div style="font-weight: bold; margin-bottom: 5px;">
+              ${isFromMe ? 'You' : (recipientUsername ? '@' + recipientUsername : msg.sender.substring(0, 6) + '...')}
+            </div>
+            <div>${escapeHtml(msg.msg)}</div>
+            <div class="timestamp" style="font-size: 11px; margin-top: 5px; opacity: 0.8;">
+              ${formatTimestamp(timestamp)}
+            </div>
+          `;
+          
+          container.appendChild(messageDiv);
+        });
+        
+        // Scroll to bottom
+        container.scrollTop = container.scrollHeight;
+      } catch (error) {
+        console.error('Load messages error:', error);
+        document.getElementById('messages-container').innerHTML = '<p style="color: #f44336;">Error loading messages: ' + error.message + '</p>';
+      }
+    }
+
+    function formatTimestamp(date) {
+      return date.toLocaleString();
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Update UI when blockchain state changes
+    window.updateBlockchainUI = async () => {
+      await initBlockchain();
+      if (currentRecipient) {
+        await loadMessages();
+      }
+    };
+  </script>
 
 </body>
 </html>

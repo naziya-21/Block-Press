@@ -15,6 +15,7 @@
       <button><a href="friend.html" style="color: white; text-decoration: none;">Friends</a></button>
       <button><a href="chat.html" style="color: white; text-decoration: none;">Chat</a></button>
     </div>
+    <div id="wallet-info" style="color: white; margin-left: 20px; font-size: 12px;"></div>
   </div>
 
   <!-- Layout -->
@@ -34,41 +35,163 @@
     <main class="feed">
       <!-- Create Post -->
       <div class="create-post">
-        <textarea placeholder="What's on your mind?"></textarea>
-        <button class="btn">Post</button>
+        <input type="text" id="article-title" placeholder="Article Title" style="padding: 10px; margin-bottom: 10px; width: 100%; border-radius: 5px; border: 1px solid #ccc;">
+        <textarea id="article-content" placeholder="What's on your mind? Write your article here..."></textarea>
+        <button class="btn" onclick="handleCreateArticle()">Post to Blockchain</button>
+        <div id="post-status" style="margin-top: 10px; padding: 5px; display: none;"></div>
       </div>
 
-      <!-- Example Post 1 -->
-      <div class="post">
-        <div class="post-header">
-          <strong>@jesna</strong> • <span>2 hrs ago</span>
-        </div>
-        <div class="post-content">
-          <p>Hello everyone 👋 This is my first post on Block Press!</p>
-        </div>
-        <div class="post-actions">
-          <button>👍 Like</button>
-          <button>💬 Comment</button>
-        </div>
-      </div>
-
-      <!-- Example Post 2 -->
-      <div class="post">
-        <div class="post-header">
-          <strong>@alex</strong> • <span>5 hrs ago</span>
-        </div>
-        <div class="post-content">
-          <p>Sharing an image from a recent protest in LA.</p>
-          <div class="post-image"></div>
-        </div>
-        <div class="post-actions">
-          <button>👍 Like</button>
-          <button>💬 Comment</button>
-        </div>
+      <!-- Articles from Blockchain -->
+      <div id="articles-container">
+        <!-- Articles will be loaded here dynamically -->
       </div>
 
     </main>
   </div>
+
+  <!-- Web3 Library -->
+  <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+  <!-- Web3 Configuration -->
+  <script src="js/web3-config.js"></script>
+  
+  <script>
+    let isConnected = false;
+
+    // Initialize on page load
+    window.addEventListener('load', async () => {
+      await initBlockchain();
+      await loadArticles();
+    });
+
+    async function initBlockchain() {
+      try {
+        isConnected = await window.web3Config.initWeb3();
+        
+        if (isConnected) {
+          const account = window.web3Config.getUserAccount();
+          document.getElementById('wallet-info').textContent = `Connected: ${account.substring(0, 6)}...${account.substring(38)}`;
+          
+          // Check if user is registered
+          const registered = await window.web3Config.isUserRegistered(account);
+          if (!registered) {
+            alert('Please register an account first at the main page');
+            window.location.href = 'main.html';
+          }
+        }
+      } catch (error) {
+        console.error('Init error:', error);
+      }
+    }
+
+    async function handleCreateArticle() {
+      const title = document.getElementById('article-title').value.trim();
+      const content = document.getElementById('article-content').value.trim();
+      
+      if (!title || !content) {
+        alert('Please enter both title and content');
+        return;
+      }
+
+      if (!isConnected) {
+        alert('Please connect to MetaMask first');
+        await initBlockchain();
+        return;
+      }
+
+      try {
+        const statusDiv = document.getElementById('post-status');
+        statusDiv.style.display = 'block';
+        statusDiv.textContent = 'Publishing to blockchain...';
+        statusDiv.style.color = '#ff9800';
+
+        await window.web3Config.createArticle(title, content);
+        
+        statusDiv.textContent = '✓ Article published to blockchain!';
+        statusDiv.style.color = '#4caf50';
+        
+        document.getElementById('article-title').value = '';
+        document.getElementById('article-content').value = '';
+        
+        // Reload articles
+        await loadArticles();
+      } catch (error) {
+        const statusDiv = document.getElementById('post-status');
+        statusDiv.style.display = 'block';
+        statusDiv.textContent = '✗ Error: ' + error.message;
+        statusDiv.style.color = '#f44336';
+        console.error('Create article error:', error);
+      }
+    }
+
+    async function loadArticles() {
+      try {
+        if (!isConnected) return;
+        
+        const contract = window.web3Config.getContract();
+        if (!contract) return;
+        
+        const articleCount = await contract.methods.getArticleCount().call();
+        const container = document.getElementById('articles-container');
+        container.innerHTML = '';
+        
+        // Load articles in reverse order (newest first)
+        for (let i = articleCount; i > 0; i--) {
+          try {
+            const article = await window.web3Config.getArticle(i);
+            const authorUser = await window.web3Config.getUser(article.author);
+            const timestamp = new Date(parseInt(article.timestamp) * 1000);
+            
+            const articleDiv = document.createElement('div');
+            articleDiv.className = 'post';
+            articleDiv.innerHTML = `
+              <div class="post-header">
+                <strong>@${authorUser.username}</strong> • <span>${formatTimestamp(timestamp)}</span>
+              </div>
+              <div class="post-content">
+                <h3>${escapeHtml(article.title)}</h3>
+                <p>${escapeHtml(article.content)}</p>
+              </div>
+              <div class="post-actions">
+                <button>👍 Like</button>
+                <button>💬 Comment</button>
+                <span style="font-size: 12px; color: #666;">Blockchain ID: ${article.id}</span>
+              </div>
+            `;
+            container.appendChild(articleDiv);
+          } catch (error) {
+            console.error(`Error loading article ${i}:`, error);
+          }
+        }
+      } catch (error) {
+        console.error('Load articles error:', error);
+      }
+    }
+
+    function formatTimestamp(date) {
+      const now = new Date();
+      const diff = now - date;
+      const minutes = Math.floor(diff / 60000);
+      const hours = Math.floor(minutes / 60);
+      const days = Math.floor(hours / 24);
+      
+      if (days > 0) return `${days} day${days > 1 ? 's' : ''} ago`;
+      if (hours > 0) return `${hours} hr${hours > 1 ? 's' : ''} ago`;
+      if (minutes > 0) return `${minutes} min${minutes > 1 ? 's' : ''} ago`;
+      return 'Just now';
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Update UI when blockchain state changes
+    window.updateBlockchainUI = async () => {
+      await initBlockchain();
+      await loadArticles();
+    };
+  </script>
 
 </body>
 </html>

@@ -13,9 +13,10 @@
   <div class="navbar">
     <div class="title">Block Press</div>
     <div class="buttons">
-      <button>Friends</button>
-      <button>Chat</button>
+      <button onclick="window.location.href='friend.html'">Friends</button>
+      <button onclick="window.location.href='chat.html'">Chat</button>
     </div>
+    <div id="wallet-info" style="color: white; margin-left: 20px; font-size: 12px;"></div>
   </div>
 
   <!-- Main container -->
@@ -23,12 +24,153 @@
     <h1>Welcome to Block Press</h1>
     <p>A Secure and Decentralized Tamper-Proof Journalism Network.</p>
 
+    <!-- Connection Status -->
+    <div id="connection-status" style="margin: 20px 0; padding: 10px; background: #f0f0f0; border-radius: 5px; display: none;">
+      <p id="status-text"></p>
+    </div>
+
     <!-- Animated box around buttons -->
     <div class="box">
-      <button class="btn btn-primary">Create Account</button>
-      <button class="btn btn-secondary">Get My Username</button>
+      <div style="margin-bottom: 20px;">
+        <input type="text" id="username-input" placeholder="Enter your username" style="padding: 10px; margin: 10px; width: 200px; border-radius: 5px; border: 1px solid #ccc;">
+        <button class="btn btn-primary" onclick="handleCreateAccount()">Create Account</button>
+      </div>
+      <div>
+        <button class="btn btn-secondary" onclick="handleGetUsername()">Get My Username</button>
+      </div>
+      <div id="username-display" style="margin-top: 20px; padding: 10px; background: #e8f5e9; border-radius: 5px; display: none;">
+        <strong>Your Username:</strong> <span id="username-value"></span>
+      </div>
+    </div>
+
+    <!-- Account Info -->
+    <div id="account-info" style="margin-top: 30px; padding: 15px; background: #f5f5f5; border-radius: 5px; display: none;">
+      <h3>Account Information</h3>
+      <p><strong>Address:</strong> <span id="account-address"></span></p>
+      <p><strong>Username:</strong> <span id="account-username"></span></p>
+      <button class="btn" onclick="window.location.href='dashboard.html'" style="margin-top: 10px;">Go to Dashboard</button>
     </div>
   </div>
+
+  <!-- Web3 Library -->
+  <script src="https://cdn.jsdelivr.net/npm/web3@latest/dist/web3.min.js"></script>
+  <!-- Web3 Configuration -->
+  <script src="js/web3-config.js"></script>
+  
+  <script>
+    let isConnected = false;
+
+    // Initialize on page load
+    window.addEventListener('load', async () => {
+      await initBlockchain();
+    });
+
+    async function initBlockchain() {
+      const statusDiv = document.getElementById('connection-status');
+      const statusText = document.getElementById('status-text');
+      
+      try {
+        statusDiv.style.display = 'block';
+        statusText.textContent = 'Connecting to blockchain...';
+        statusText.style.color = '#ff9800';
+        
+        isConnected = await window.web3Config.initWeb3();
+        
+        if (isConnected) {
+          statusText.textContent = '✓ Connected to blockchain';
+          statusText.style.color = '#4caf50';
+          
+          const account = window.web3Config.getUserAccount();
+          document.getElementById('wallet-info').textContent = `Connected: ${account.substring(0, 6)}...${account.substring(38)}`;
+          
+          // Check if user is registered
+          const registered = await window.web3Config.checkUserExists(account);
+          if (registered) {
+            await loadUserInfo();
+          }
+        } else {
+          statusText.textContent = '✗ Please install MetaMask';
+          statusText.style.color = '#f44336';
+        }
+      } catch (error) {
+        statusText.textContent = '✗ Connection error: ' + error.message;
+        statusText.style.color = '#f44336';
+        console.error('Init error:', error);
+      }
+    }
+
+    async function handleCreateAccount() {
+      const username = document.getElementById('username-input').value.trim();
+      
+      if (!username) {
+        alert('Please enter a username');
+        return;
+      }
+
+      if (!isConnected) {
+        alert('Please connect to MetaMask first');
+        await initBlockchain();
+        return;
+      }
+
+      try {
+        const statusText = document.getElementById('status-text');
+        statusText.textContent = 'Registering account on blockchain...';
+        statusText.style.color = '#ff9800';
+
+        await window.web3Config.createAccount(username);
+        
+        statusText.textContent = '✓ Account created successfully!';
+        statusText.style.color = '#4caf50';
+        
+        document.getElementById('username-input').value = '';
+        await loadUserInfo();
+      } catch (error) {
+        alert('Error creating account: ' + error.message);
+        console.error('Registration error:', error);
+      }
+    }
+
+    async function handleGetUsername() {
+      if (!isConnected) {
+        alert('Please connect to MetaMask first');
+        await initBlockchain();
+        return;
+      }
+
+      try {
+        const account = window.web3Config.getUserAccount();
+        const username = await window.web3Config.getUsername(account);
+        
+        document.getElementById('username-display').style.display = 'block';
+        document.getElementById('username-value').textContent = username;
+      } catch (error) {
+        alert('Error getting username: ' + error.message);
+        console.error('Get username error:', error);
+      }
+    }
+
+    async function loadUserInfo() {
+      try {
+        const account = window.web3Config.getUserAccount();
+        const username = await window.web3Config.getUsername(account);
+        
+        document.getElementById('account-info').style.display = 'block';
+        document.getElementById('account-address').textContent = account;
+        document.getElementById('account-username').textContent = username;
+        
+        document.getElementById('username-display').style.display = 'block';
+        document.getElementById('username-value').textContent = username;
+      } catch (error) {
+        console.error('Load user info error:', error);
+      }
+    }
+
+    // Update UI when blockchain state changes
+    window.updateBlockchainUI = async () => {
+      await initBlockchain();
+    };
+  </script>
 
 </body>
 </html>
