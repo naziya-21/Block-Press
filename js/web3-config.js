@@ -159,9 +159,10 @@ async function createAccount(name) {
             throw new Error('Web3 not initialized');
         }
         
+        // FIX: Convert gas to string to avoid BigInt mixing error
         const result = await contract.methods.createAccount(name).send({
             from: userAccount,
-            gas: 300000
+            gas: '300000'  // Changed from number to string
         });
         
         console.log('Account created:', result);
@@ -192,9 +193,10 @@ async function addFriend(friendKey, friendName) {
             throw new Error('Web3 not initialized');
         }
         
+        // FIX: Convert gas to string
         const result = await contract.methods.addFriend(friendKey, friendName).send({
             from: userAccount,
-            gas: 300000
+            gas: '300000'  // Changed from number to string
         });
         
         console.log('Friend added:', result);
@@ -228,9 +230,10 @@ async function sendMessage(friendKey, message) {
             throw new Error('Web3 not initialized');
         }
         
+        // FIX: Convert gas to string
         const result = await contract.methods.sendMessage(friendKey, message).send({
             from: userAccount,
-            gas: 300000
+            gas: '300000'  // Changed from number to string
         });
         
         console.log('Message sent:', result);
