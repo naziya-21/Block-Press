@@ -138,6 +138,31 @@ async function initContract() {
     console.log('Contract initialized');
 }
 
+// Helper function to safely convert BigInt values in objects
+function convertBigIntToString(obj) {
+    if (obj === null || obj === undefined) {
+        return obj;
+    }
+    
+    if (typeof obj === 'bigint') {
+        return obj.toString();
+    }
+    
+    if (Array.isArray(obj)) {
+        return obj.map(item => convertBigIntToString(item));
+    }
+    
+    if (typeof obj === 'object') {
+        const converted = {};
+        for (const key in obj) {
+            converted[key] = convertBigIntToString(obj[key]);
+        }
+        return converted;
+    }
+    
+    return obj;
+}
+
 // Contract interaction functions
 async function checkUserExists(address) {
     try {
@@ -159,10 +184,13 @@ async function createAccount(name) {
             throw new Error('Web3 not initialized');
         }
         
-        // FIX: Convert gas to string to avoid BigInt mixing error
+        const gasEstimate = await contract.methods.createAccount(name).estimateGas({
+            from: userAccount
+        });
+        
         const result = await contract.methods.createAccount(name).send({
             from: userAccount,
-            gas: '300000'  // Changed from number to string
+            gas: String(gasEstimate)
         });
         
         console.log('Account created:', result);
@@ -193,10 +221,13 @@ async function addFriend(friendKey, friendName) {
             throw new Error('Web3 not initialized');
         }
         
-        // FIX: Convert gas to string
+        const gasEstimate = await contract.methods.addFriend(friendKey, friendName).estimateGas({
+            from: userAccount
+        });
+        
         const result = await contract.methods.addFriend(friendKey, friendName).send({
             from: userAccount,
-            gas: '300000'  // Changed from number to string
+            gas: String(gasEstimate)
         });
         
         console.log('Friend added:', result);
@@ -217,7 +248,8 @@ async function getMyFriendList() {
             from: userAccount
         });
         
-        return friendList;
+        // Convert any BigInt values to strings
+        return convertBigIntToString(friendList);
     } catch (error) {
         console.error('Error getting friend list:', error);
         throw error;
@@ -230,10 +262,13 @@ async function sendMessage(friendKey, message) {
             throw new Error('Web3 not initialized');
         }
         
-        // FIX: Convert gas to string
+        const gasEstimate = await contract.methods.sendMessage(friendKey, message).estimateGas({
+            from: userAccount
+        });
+        
         const result = await contract.methods.sendMessage(friendKey, message).send({
             from: userAccount,
-            gas: '300000'  // Changed from number to string
+            gas: String(gasEstimate)
         });
         
         console.log('Message sent:', result);
@@ -254,7 +289,8 @@ async function readMessage(friendKey) {
             from: userAccount
         });
         
-        return messages;
+        // Convert any BigInt values (like timestamps) to strings
+        return convertBigIntToString(messages);
     } catch (error) {
         console.error('Error reading messages:', error);
         throw error;
@@ -281,5 +317,6 @@ window.web3Config = {
     readMessage,
     getContract: () => contract,
     getUserAccount: () => userAccount,
-    getWeb3: () => web3
+    getWeb3: () => web3,
+    convertBigIntToString // Export helper function
 };
